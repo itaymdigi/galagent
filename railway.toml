@@ -1,0 +1,18 @@
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "npm start"
+healthcheckPath = "/"
+healthcheckTimeout = 100
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 10
+
+[[services]]
+name = "galagent"
+
+[services.variables]
+NODE_ENV = "production"
+NEXT_PUBLIC_APP_URL = "${{ RAILWAY_STATIC_URL }}"
+
+# Database will be automatically configured by Railway if you add a PostgreSQL service 

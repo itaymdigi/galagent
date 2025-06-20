@@ -2,26 +2,44 @@
   "name": "galagent",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "mastra:dev": "mastra dev",
+    "mastra:build": "mastra build",
+    "agent:chat": "node src/agent-cli.js",
+    "db:setup": "node scripts/setup-db.js",
+    "deploy:vercel": "vercel --prod",
+    "deploy:railway": "railway up",
+    "test:connection": "node scripts/test-connection.js"
   },
   "dependencies": {
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "next": "15.3.4"
+    "@ai-sdk/openai": "latest",
+    "@mastra/core": "0.0.0-working-memory-per-user-20250620163010",
+    "@mastra/memory": "0.0.0-working-memory-per-user-20250620163010",
+    "@mastra/libsql": "0.0.0-working-memory-per-user-20250620163010",
+    "@mastra/upstash": "0.0.0-working-memory-per-user-20250620163010",
+    "@mastra/pg": "0.0.0-working-memory-per-user-20250620163010",
+    "ai": "^4.3.16",
+    "chalk": "^5.4.1",
+    "ora": "^8.2.0",
+    "readline": "^1.3.0",
+    "zod": "^3.25.56",
+    "next": "15.1.3",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
   },
   "devDependencies": {
-    "typescript": "^5",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "@tailwindcss/postcss": "^4",
-    "tailwindcss": "^4",
-    "eslint": "^9",
-    "eslint-config-next": "15.3.4",
-    "@eslint/eslintrc": "^3"
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "eslint": "^8.0.0",
+    "eslint-config-next": "15.1.3",
+    "postcss": "^8.0.0",
+    "tailwindcss": "^3.0.0",
+    "typescript": "^5.0.0"
   }
 }
