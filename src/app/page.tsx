@@ -13,38 +13,52 @@ interface Message {
 }
 
 export default function ChatPage() {
-  const [threadId] = useState(() => crypto.randomUUID());
-  const [resourceId] = useState(() => `user_${crypto.randomUUID().slice(0, 8)}`);
+  const [threadId, setThreadId] = useState<string>('');
+  const [resourceId, setResourceId] = useState<string>('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Initialize IDs only on client side to avoid hydration mismatch
+  useEffect(() => {
+    if (!threadId) {
+      setThreadId(crypto.randomUUID());
+    }
+    if (!resourceId) {
+      setResourceId(`user_${crypto.randomUUID().slice(0, 8)}`);
+    }
+  }, [threadId, resourceId]);
+
+  const [isInitialized, setIsInitialized] = useState(false);
+  
   const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
     api: '/api/chat',
     body: {
       threadId,
       resourceId,
     },
-    initialMessages: [
-      {
-        id: 'welcome',
-        role: 'assistant',
-        content: `👋 Hi! I'm **Gal Agent**, your intelligent AI assistant with powerful capabilities:
-
-🌐 **Web Search** - I can search the internet for current information
-🔍 **Web Scraping** - Extract and analyze content from any webpage  
-🧮 **Calculations** - Perform complex mathematical calculations
-🧠 **Memory** - Remember our conversations and your preferences
-📚 **Knowledge Search** - Find information from our past discussions
-
-What would you like to explore today?`,
-        createdAt: new Date(),
-      },
-    ],
+    initialMessages: [],
+    id: threadId, // This helps prevent duplicate chat instances
   });
+
+  // Mark as initialized after hydration
+  useEffect(() => {
+    if (threadId && resourceId && !isInitialized) {
+      setIsInitialized(true);
+    }
+  }, [threadId, resourceId, isInitialized]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Handle browser extension interference
+  useEffect(() => {
+    // Small delay to let extensions add their attributes before React hydrates
+    const timer = setTimeout(() => {
+      // This helps prevent hydration warnings from browser extensions
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   const formatMessage = (content: string) => {
     // Simple markdown-like formatting
@@ -127,6 +141,25 @@ What would you like to explore today?`,
       {/* Chat Messages */}
       <div className="max-w-4xl mx-auto px-4 py-6">
         <div className="space-y-6">
+          {/* Welcome Message - only show after initialization */}
+          {isInitialized && messages.length === 0 && (
+            <div className="flex justify-start">
+              <div className="max-w-3xl rounded-2xl px-4 py-3 bg-white border border-gray-200 shadow-sm">
+                <div className="text-gray-800">
+                  👋 Hi! I'm <strong>Gal Agent</strong>, your intelligent AI assistant with powerful capabilities:
+                  <br /><br />
+                  🌐 <strong>Web Search</strong> - I can search the internet for current information<br />
+                  🔍 <strong>Web Scraping</strong> - Extract and analyze content from any webpage<br />
+                  🧮 <strong>Calculations</strong> - Perform complex mathematical calculations<br />
+                  🧠 <strong>Memory</strong> - Remember our conversations and your preferences<br />
+                  📚 <strong>Knowledge Search</strong> - Find information from our past discussions
+                  <br /><br />
+                  What would you like to explore today?
+                </div>
+              </div>
+            </div>
+          )}
+          
           {messages.map((message) => (
             <div
               key={message.id}
