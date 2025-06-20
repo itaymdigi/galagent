@@ -5,7 +5,7 @@ import ora from 'ora';
 import readline from 'readline';
 import 'dotenv/config';
 
-import { mastra } from './mastra/index.js';
+import { mastra } from './mastra/index';
 
 const agent = mastra.getAgent('assistantAgent');
 
@@ -18,7 +18,7 @@ console.log(chalk.gray(`Session ID: ${resourceId}`));
 console.log(chalk.gray(`Thread ID: ${threadId.slice(0, 8)}...`));
 console.log(chalk.gray('Type "exit" to quit, "new" for new conversation\n'));
 
-async function logResponse(response) {
+async function logResponse(response: any) {
   console.log(chalk.green.bold('\n🤖 Assistant:'));
   let message = '';
 
@@ -77,7 +77,7 @@ async function main() {
   });
 
   while (true) {
-    const answer = await new Promise((resolve) => {
+    const answer = await new Promise<string>((resolve) => {
       rl.question(chalk.cyan.bold('\n👤 You: '), (answer) => {
         setImmediate(() => resolve(answer));
       });

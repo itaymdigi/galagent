@@ -1,170 +1,230 @@
-# GalAgent - Mastra AI Assistant with Memory
+# 🤖 Gal Agent
 
-A powerful AI assistant built with Mastra that remembers conversations and learns about users over time using the latest working memory per user features.
+An intelligent AI assistant built with Mastra featuring web search, scraping, memory, and calculation capabilities.
 
-## Features
+## ✨ Features
 
-- 🧠 **Working Memory Per User**: Maintains persistent memory about each user across conversations
-- 🔍 **Semantic Recall**: Searches through conversation history to find relevant context
-- 🛠️ **Tool Integration**: Web search and calculator capabilities
-- 💬 **Terminal Interface**: Clean command-line chat experience
-- 🔄 **Multi-threaded Conversations**: Support for multiple conversation threads per user
-- 💾 **Persistent Storage**: Uses LibSQL for reliable data persistence
+### 🌐 Web Search & Information
+- **Tavily API Integration**: Search the internet for current information
+- **Real-time Results**: Get up-to-date search results with relevance scoring
 
-## Quick Start
+### 🔍 Web Scraping
+- **Content Extraction**: Extract clean content from any webpage
+- **Smart Parsing**: Automatically removes scripts, styles, and extracts meaningful text
 
-### 1. Install Dependencies
+### 🧮 Advanced Calculations
+- **Mathematical Operations**: Handle complex mathematical expressions
+- **Safe Evaluation**: Secure calculation processing with error handling
 
+### 🧠 Persistent Memory
+- **User Memory**: Remember preferences and context across sessions
+- **Conversation History**: Semantic search through past conversations
+- **Working Memory**: Maintain detailed user profiles and session context
+
+### 📚 Knowledge Search
+- **Semantic Recall**: Find relevant information from stored conversations
+- **Context-Aware**: Provide responses based on historical interactions
+
+## 🚀 Quick Start
+
+### Prerequisites
+- Node.js 18+
+- npm/pnpm
+- API Keys (OpenAI, Tavily)
+
+### Installation
+
+1. **Clone and Install**:
+   ```powershell
+   git clone <your-repo>
+   cd galagent
+   npm install --force
+   ```
+
+2. **Set up Environment Variables**:
+   Create a `.env` file with your API keys:
+   ```env
+   # OpenAI API Configuration
+   OPENAI_API_KEY=your_openai_key_here
+   
+   # Tavily Search API
+   TAVILY_API_KEY=your_tavily_key_here
+   
+   # Database (Local SQLite)
+   LIBSQL_URL=file:./mastra.db
+   
+   # Next.js Configuration
+   NEXT_PUBLIC_APP_URL=http://localhost:3000
+   MASTRA_APP_URL=http://localhost:4111
+   ```
+
+### 🎯 Running the Application
+
+#### 🌐 Web Interface (Recommended)
 ```powershell
-pnpm install
+npm run dev
 ```
+Open http://localhost:3000 for a beautiful chat interface
 
-### 2. Set Up Environment
+#### 💻 Terminal Chat
+```powershell
+npm run agent:chat
+```
+Interactive CLI chat experience
 
-Create a `.env` file in the root directory:
+#### 🛠️ Mastra Dev Server
+```powershell
+npm run mastra:dev
+```
+Open http://localhost:4111 for Mastra's built-in interface
+
+## 🎨 Web Interface Features
+
+- **Real-time Streaming**: See responses as they're generated
+- **Tool Visualization**: Watch web searches and calculations in action
+- **Modern UI**: Beautiful, responsive design with dark/light themes
+- **Memory Indicators**: Visual feedback when memory is being updated
+- **Mobile Friendly**: Works great on all devices
+
+## 🔧 Configuration
+
+### Database Options
+
+Choose your preferred storage backend:
 
 ```env
-OPENAI_API_KEY=your_openai_api_key_here
+# Local SQLite (Development)
+LIBSQL_URL=file:./mastra.db
+
+# Turso Cloud SQLite
+LIBSQL_URL=libsql://your-database.turso.io
+LIBSQL_AUTH_TOKEN=your_auth_token
+
+# PostgreSQL (Production)
+DATABASE_URL=postgresql://user:password@host:port/database
+
+# Upstash Redis (Serverless)
+UPSTASH_REDIS_REST_URL=your_upstash_url
+UPSTASH_REDIS_REST_TOKEN=your_upstash_token
 ```
 
-### 3. Run the Agent in Terminal
+### Memory Configuration
 
-```powershell
-pnpm run agent:chat
-```
+The agent uses advanced memory features:
 
-### 4. Or Use Mastra Dev Server
+- **Working Memory**: Detailed user profiles with preferences and context
+- **Semantic Recall**: Search through conversation history
+- **Thread Management**: Automatic conversation organization
+- **User-Specific Memory**: Each user gets their own memory space
 
-```powershell
-pnpm run mastra:dev
-```
-
-Then visit `http://localhost:4111` for the web interface.
-
-## Terminal Commands
-
-- **exit** - Quit the application
-- **new** - Start a new conversation thread
-- **Ctrl+C** - Graceful shutdown
-
-## Memory Features
-
-The agent uses advanced memory capabilities:
-
-### Working Memory
-- Stores user profile information (name, preferences, goals)
-- Tracks ongoing projects and conversations
-- Maintains context across sessions
-
-### Semantic Recall
-- Searches through conversation history for relevant information
-- Retrieves related discussions from past conversations
-- Provides context-aware responses
-
-### Thread Management
-- Multiple conversation threads per user
-- Automatic thread title generation
-- Persistent storage across sessions
-
-## Architecture
+## 📁 Project Structure
 
 ```
-src/
-├── mastra/
-│   ├── index.ts          # Main Mastra configuration
-│   └── agents/
-│       └── index.ts      # Agent definition with memory
-├── agent-cli.js          # Terminal interface
-└── app/                  # Next.js web interface (optional)
+galagent/
+├── src/
+│   ├── app/                    # Next.js web application
+│   │   ├── page.tsx           # Main chat interface
+│   │   ├── layout.tsx         # App layout
+│   │   └── api/chat/          # Chat API endpoint
+│   ├── mastra/                # Mastra configuration
+│   │   ├── index.ts           # Main Mastra instance
+│   │   ├── agents/            # Agent definitions
+│   │   │   └── index.ts       # Gal Agent with tools
+│   │   └── config/            # Production configuration
+│   └── agent-cli.ts           # Terminal interface
+├── .env                       # Environment variables
+└── package.json              # Dependencies and scripts
 ```
 
-## Hosting Options
+## 🛠️ Available Tools
 
-### For Next.js Deployment
-
-**Supabase vs Upstash for Vercel:**
-
-- **Supabase** (Recommended for Next.js):
-  - ✅ Full PostgreSQL database with vector support
-  - ✅ Built-in auth, real-time subscriptions
-  - ✅ Generous free tier (500MB database)
-  - ✅ Better for complex queries and relationships
-  - ✅ Supports semantic recall with pgvector
-
-- **Upstash** (Good for simple use cases):
-  - ✅ Redis-based, extremely fast
-  - ✅ Serverless-friendly
-  - ✅ Great for caching and sessions
-  - ❌ Limited query capabilities vs PostgreSQL
-  - ❌ More expensive for large datasets
-
-**Recommendation**: Use **Supabase** for Next.js on Vercel because:
-1. Better memory/conversation storage with full SQL
-2. Built-in vector search for semantic recall
-3. More cost-effective at scale
-4. Better developer experience with Next.js
-
-### Configuration Examples
-
-#### Supabase Setup
+### 🌐 Web Search
 ```typescript
-import { PostgresStore, PostgresVector } from '@mastra/pg';
-
-const memory = new Memory({
-  storage: new PostgresStore({
-    connectionString: process.env.DATABASE_URL,
-  }),
-  vector: new PostgresVector({
-    connectionString: process.env.DATABASE_URL,
-  }),
-});
+// Search for current information
+webSearch({
+  query: "latest AI news",
+  maxResults: 5
+})
 ```
 
-#### Upstash Setup
+### 🔍 Web Scraping
 ```typescript
-import { UpstashStore, UpstashVector } from '@mastra/upstash';
-
-const memory = new Memory({
-  storage: new UpstashStore({
-    url: process.env.UPSTASH_REDIS_REST_URL,
-    token: process.env.UPSTASH_REDIS_REST_TOKEN,
-  }),
-  vector: new UpstashVector({
-    url: process.env.UPSTASH_VECTOR_REST_URL,
-    token: process.env.UPSTASH_VECTOR_REST_TOKEN,
-  }),
-});
+// Extract content from any webpage
+webScrape({
+  url: "https://example.com"
+})
 ```
 
-## Special Versions
+### 🧮 Calculator
+```typescript
+// Perform mathematical calculations
+calculator({
+  expression: "2 + 2 * 5"
+})
+```
 
-This project uses the special working memory per user versions:
-- `@mastra/core@0.0.0-working-memory-per-user-20250620163010`
-- `@mastra/memory@0.0.0-working-memory-per-user-20250620163010`
-- `@mastra/libsql@0.0.0-working-memory-per-user-20250620163010`
-- `@mastra/upstash@0.0.0-working-memory-per-user-20250620163010`
-- `@mastra/pg@0.0.0-working-memory-per-user-20250620163010`
+### 📚 Knowledge Search
+```typescript
+// Search through stored conversations
+knowledgeSearch({
+  query: "previous discussions about AI",
+  limit: 5
+})
+```
 
-## Development
+## 🚀 Deployment
 
-### Terminal Agent
+### Vercel (Recommended)
 ```powershell
-pnpm run agent:chat
+npm run deploy:vercel
 ```
 
-### Web Interface
+### Railway
 ```powershell
-pnpm run mastra:dev
+npm run deploy:railway
 ```
 
-### Next.js Development
-```powershell
-pnpm run dev
+## 💡 Usage Examples
+
+### Basic Conversation
+```
+User: Hi, what's the weather like today?
+Gal Agent: I'll search for current weather information for you.
+[Uses web search tool to find weather data]
 ```
 
-## Learn More
+### Web Scraping
+```
+User: Can you analyze this article? https://example.com/article
+Gal Agent: I'll extract and analyze the content from that webpage.
+[Uses web scraping tool to extract article content]
+```
 
-- [Mastra Documentation](https://mastra.ai/docs)
-- [Memory Guide](https://mastra.ai/docs/memory/overview)
-- [Agent Documentation](https://mastra.ai/docs/agents/overview)
-- [Working Memory](https://mastra.ai/docs/memory/working-memory)
+### Calculations
+```
+User: What's 15% of 250?
+Gal Agent: Let me calculate that for you.
+[Uses calculator tool: 250 * 0.15 = 37.5]
+```
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📝 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 🙏 Acknowledgments
+
+- [Mastra.ai](https://mastra.ai) - The AI framework powering this agent
+- [Tavily](https://tavily.com) - Web search API
+- [OpenAI](https://openai.com) - Language model provider
+
+---
+
+**Made with ❤️ using Mastra AI Framework**

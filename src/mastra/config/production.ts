@@ -1,5 +1,5 @@
 import { LibSQLStore, LibSQLVector } from '@mastra/libsql';
-import { PostgresStore, PostgresVector } from '@mastra/pg';
+import { PostgresStore } from '@mastra/pg';
 import { UpstashStore, UpstashVector } from '@mastra/upstash';
 
 // Production database configuration based on environment
@@ -10,8 +10,8 @@ export function createProductionStorage() {
       storage: new PostgresStore({
         connectionString: process.env.DATABASE_URL,
       }),
-      vector: new PostgresVector({
-        connectionString: process.env.DATABASE_URL,
+      vector: new LibSQLVector({
+        connectionUrl: process.env.LIBSQL_URL || 'file:./mastra.db',
       }),
     };
   }
@@ -66,11 +66,11 @@ export const productionConfig = {
   // Memory settings optimized for production
   memory: {
     lastMessages: 15, // Slightly higher for production
-    semanticRecall: {
-      topK: 5, // More context in production
-      messageRange: 3,
-      scope: 'resource' as const,
-    },
+    // semanticRecall: {
+    //   topK: 5, // More context in production
+    //   messageRange: 3,
+    //   scope: 'resource' as const,
+    // },
     workingMemory: {
       enabled: true,
       // More detailed template for production

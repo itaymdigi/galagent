@@ -1,6 +1,6 @@
 import { Mastra } from '@mastra/core';
-import { assistantAgent } from './agents/index.js';
-import { createProductionStorage, productionConfig } from './config/production.js';
+import { assistantAgent } from './agents/index';
+import { createProductionStorage, productionConfig } from './config/production';
 
 // Configure storage for persistence (production-ready)
 const { storage } = createProductionStorage();
@@ -11,5 +11,5 @@ export const mastra = new Mastra({
     assistantAgent 
   },
   storage,
-  logger: productionConfig.logging.enabled, // Use production logging config
+  logger: productionConfig.logging.enabled ? undefined : false, // Use production logging config
 }); 
