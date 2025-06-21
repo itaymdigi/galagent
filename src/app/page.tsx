@@ -51,7 +51,6 @@ export default function ChatPage() {
     onResponse: (response) => {
       console.log('📡 Response received:', response);
     },
-    streamMode: 'text',
   });
 
   // Mark as initialized after hydration

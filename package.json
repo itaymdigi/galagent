@@ -7,7 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "biome check .",
+    "lint": "next lint",
     "biome:check": "biome check .",
     "biome:check:write": "biome check --write .",
     "biome:check:unsafe": "biome check --write --unsafe .",

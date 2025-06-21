@@ -4,6 +4,11 @@ const nextConfig: NextConfig = {
   // Improve hydration stability
   reactStrictMode: true,
   
+  // Disable ESLint during build since we use Biome
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  
   // Handle browser extension interference
   experimental: {
     // This helps with hydration mismatches
