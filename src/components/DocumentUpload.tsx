@@ -38,6 +38,7 @@ export default function DocumentUpload() {
     } catch (error) {
       setResult({
         success: false,
+        message: 'Upload failed',
         error: 'Upload failed',
         details: error instanceof Error ? error.message : 'Unknown error',
       });

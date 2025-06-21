@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { mastra } from '@/mastra';
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,31 +37,19 @@ export async function POST(request: NextRequest) {
         documentType = 'text';
     }
 
-    // Process document using the agent's document processing tool
-    const result = await mastra.agents.assistantAgent.execute({
-      messages: [{
-        role: 'user',
-        content: `Please process this document for RAG storage. Use the document-process tool with the following details:
-        - Content: ${content}
-        - Title: ${title || file.name}
-        - Type: ${documentType}
-        - Source: ${source || file.name}
-        
-        After processing, provide a summary of what was stored.`
-      }],
-    });
-
-    // Extract the tool result from the agent's response
-    const lastMessage = result.messages[result.messages.length - 1];
-    
+    // For now, just return the file information without processing
+    // This removes the RAG dependency that was causing build errors
     return NextResponse.json({
       success: true,
-      message: 'Document uploaded and processed successfully',
+      message: 'File uploaded successfully',
       fileName: file.name,
       fileSize: file.size,
       documentType,
-      agentResponse: lastMessage.content,
-      result: result,
+      title: title || file.name,
+      source: source || 'upload',
+      contentLength: content.length,
+      contentPreview: content.substring(0, 200) + (content.length > 200 ? '...' : ''),
+      note: 'Document processing capabilities will be available once RAG dependencies are resolved'
     });
 
   } catch (error) {

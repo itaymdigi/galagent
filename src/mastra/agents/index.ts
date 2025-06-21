@@ -3,9 +3,6 @@ import { Agent } from '@mastra/core/agent';
 import { Memory } from '@mastra/memory';
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-// Add RAG imports
-import { MDocument } from '@mastra/rag';
-import { embedMany } from 'ai';
 
 import { createProductionStorage, productionConfig } from '../config/production';
 
@@ -137,14 +134,56 @@ const scrapeAndSendTool = createTool({
       message += `🔗 *Source:* ${context.url}\n\n`;
       message += `📝 *Content:*\n${truncatedContent}`;
 
-      // Send via WhatsApp
-      const whatsappResult = await whatsappSendTool.execute({
-        context: {
-          phoneNumber: context.phoneNumber,
+      // Send via WhatsApp directly
+      const instanceID = process.env.WAPULSE_INSTANCE_ID;
+      const token = process.env.WAPULSE_TOKEN;
+
+      if (!instanceID || !token) {
+        return {
+          scrapeSuccess: true,
+          whatsappResult: {
+            success: false,
+            error: 'WaPulse credentials not configured. Please set WAPULSE_INSTANCE_ID and WAPULSE_TOKEN environment variables.',
+          },
+          scrapedData: {
+            url: context.url,
+            title,
+            contentLength: cleanContent.length,
+            truncatedLength: truncatedContent.length,
+          },
+        };
+      }
+
+      // Send WhatsApp message using WaPulse API
+      const whatsappResponse = await fetch(`https://wapulse.com/api/v1/instances/${instanceID}/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          to: context.phoneNumber,
           message: message,
-          type: 'user' as const,
-        }
+          type: 'user',
+        }),
       });
+
+      let whatsappResult;
+      if (!whatsappResponse.ok) {
+        const errorData = await whatsappResponse.json().catch(() => ({}));
+        whatsappResult = {
+          success: false,
+          error: `WaPulse API error: ${whatsappResponse.status} - ${errorData.message || 'Unknown error'}`,
+        };
+      } else {
+        const result = await whatsappResponse.json();
+        whatsappResult = {
+          success: true,
+          message: 'WhatsApp message sent successfully',
+          messageId: result.messageId || 'unknown',
+          timestamp: new Date().toISOString(),
+        };
+      }
 
       return {
         scrapeSuccess: true,
@@ -188,160 +227,6 @@ const validatePhoneTool = createTool({
       expectedFormat: 'Country code + phone number (digits only, no + or spaces)',
       example: '1234567890 (for US number +1-234-567-890)',
     };
-  },
-});
-
-// Document processing tool for RAG
-const documentProcessTool = createTool({
-  id: 'document-process',
-  description: 'Process and store documents (text, markdown, HTML, JSON) for intelligent retrieval using RAG',
-  inputSchema: z.object({
-    content: z.string().describe('The document content to process'),
-    title: z.string().describe('Title of the document'),
-    source: z.string().describe('Source or identifier for the document'),
-    type: z.enum(['text', 'markdown', 'html', 'json']).default('text').describe('Type of document content'),
-  }),
-  execute: async ({ context }) => {
-    try {
-      // Create document based on type
-      let doc;
-      switch (context.type) {
-        case 'markdown':
-          doc = MDocument.fromMarkdown(context.content, { 
-            title: context.title, 
-            source: context.source 
-          });
-          break;
-        case 'html':
-          doc = MDocument.fromHTML(context.content, { 
-            title: context.title, 
-            source: context.source 
-          });
-          break;
-        case 'json':
-          doc = MDocument.fromJSON(context.content, { 
-            title: context.title, 
-            source: context.source 
-          });
-          break;
-        default:
-          doc = MDocument.fromText(context.content, { 
-            title: context.title, 
-            source: context.source 
-          });
-      }
-
-      // Chunk the document
-      const chunks = await doc.chunk({
-        strategy: context.type === 'markdown' ? 'markdown' : 'recursive',
-        size: 512,
-        overlap: 50,
-        extract: {
-          summary: true,
-          keywords: true,
-        },
-      });
-
-      // Generate embeddings for chunks
-      const { embeddings } = await embedMany({
-        model: openai.embedding('text-embedding-3-small'),
-        values: chunks.map(chunk => chunk.text),
-      });
-
-      // Store in vector database if available
-      if (vector && chunks.length > 0) {
-        const vectors = chunks.map((chunk, index) => ({
-          id: `${context.source}-chunk-${index}`,
-          values: embeddings[index],
-          metadata: {
-            text: chunk.text,
-            title: context.title,
-            source: context.source,
-            type: context.type,
-            chunkIndex: index,
-            sectionSummary: chunk.sectionSummary,
-            excerptKeywords: chunk.excerptKeywords,
-          },
-        }));
-
-        await vector.upsert({
-          indexName: 'documents',
-          vectors,
-        });
-      }
-
-      return {
-        success: true,
-        message: `Document processed successfully: ${chunks.length} chunks created`,
-        title: context.title,
-        source: context.source,
-        type: context.type,
-        chunks: chunks.length,
-        totalCharacters: context.content.length,
-        hasVectorStorage: !!vector,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: `Document processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        title: context.title,
-        source: context.source,
-      };
-    }
-  },
-});
-
-// Document search tool for RAG retrieval
-const documentSearchTool = createTool({
-  id: 'document-search',
-  description: 'Search through processed documents using semantic similarity',
-  inputSchema: z.object({
-    query: z.string().describe('Search query to find relevant documents'),
-    limit: z.number().optional().default(5).describe('Number of results to return'),
-    source: z.string().optional().describe('Filter by document source'),
-  }),
-  execute: async ({ context }) => {
-    try {
-      if (!vector) {
-        return {
-          error: 'Vector storage not available',
-          results: [],
-        };
-      }
-
-      // Generate embedding for the query
-      const { embedding } = await embedMany({
-        model: openai.embedding('text-embedding-3-small'),
-        values: [context.query],
-      }).then(result => ({ embedding: result.embeddings[0] }));
-
-      // Search in vector database
-      const results = await vector.query({
-        indexName: 'documents',
-        queryVector: embedding,
-        topK: context.limit,
-        filter: context.source ? { source: context.source } : undefined,
-      });
-
-      return {
-        query: context.query,
-        results: results.map(result => ({
-          text: result.metadata.text,
-          title: result.metadata.title,
-          source: result.metadata.source,
-          score: result.score,
-          summary: result.metadata.sectionSummary,
-          keywords: result.metadata.excerptKeywords,
-        })),
-        totalResults: results.length,
-      };
-    } catch (error) {
-      return {
-        error: `Document search failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        query: context.query,
-        results: [],
-      };
-    }
   },
 });
 
@@ -518,7 +403,7 @@ const knowledgeSearchTool = createTool({
 // Create the main assistant agent
 export const assistantAgent = new Agent({
   name: 'Gal Agent',
-  description: 'An intelligent AI assistant with web search, scraping, memory, calculation, RAG document processing, and WhatsApp messaging capabilities',
+  description: 'An intelligent AI assistant with web search, scraping, memory, calculation, and WhatsApp messaging capabilities',
   instructions: `You are Gal Agent, an advanced AI assistant with powerful capabilities:
 
 🌐 **Web Search & Information**: Use Tavily API to search for current information
@@ -527,8 +412,6 @@ export const assistantAgent = new Agent({
 🧮 **Calculations**: Perform complex mathematical calculations
 🧠 **Memory**: Remember user preferences, conversations, and context across sessions
 📚 **Knowledge Search**: Search through stored knowledge and past conversations
-📄 **Document Processing**: Process and store documents for intelligent retrieval (RAG)
-🔍 **Document Search**: Search through processed documents using semantic similarity
 
 **WhatsApp Integration**:
 - Send WhatsApp messages to any phone number
@@ -537,32 +420,22 @@ export const assistantAgent = new Agent({
 - When user asks to scrape a site and send via WhatsApp, always ask for the phone number first
 - Format messages nicely with emojis and structure for WhatsApp
 
-**Document Processing Capabilities**:
-- Process text, markdown, HTML, and JSON documents
-- Automatically chunk documents for optimal retrieval
-- Generate embeddings and store in vector database
-- Extract summaries and keywords from document chunks
-- Enable semantic search across all processed documents
-
 **Your Personality**:
 - Friendly, helpful, and proactive
 - Always strive to provide accurate, well-researched answers
 - Use your tools effectively to gather information
-- When processing documents, explain what you're doing and provide useful insights
 - Combine information from multiple sources when helpful
 - Remember context from previous conversations
 - When sending WhatsApp messages, confirm the phone number format before sending
 
 **Tool Usage Guidelines**:
-1. **For document processing**: Use document-process tool when users want to upload or process documents
-2. **For finding information in documents**: Use document-search tool to find relevant content
-3. **For current events**: Use web-search tool for real-time information
-4. **For webpage content**: Use web-scrape tool to extract content from URLs
-5. **For calculations**: Use calculator tool for mathematical operations
-6. **For stored knowledge**: Use knowledge-search tool for conversation history
-7. **For WhatsApp messages**: Use whatsapp-send tool to send messages
-8. **For scrape + WhatsApp**: Use scrape-and-send-whatsapp tool to scrape and send in one action
-9. **For phone validation**: Use validate-phone tool to check phone number format
+1. **For current events**: Use web-search tool for real-time information
+2. **For webpage content**: Use web-scrape tool to extract content from URLs
+3. **For calculations**: Use calculator tool for mathematical operations
+4. **For stored knowledge**: Use knowledge-search tool for conversation history
+5. **For WhatsApp messages**: Use whatsapp-send tool to send messages
+6. **For scrape + WhatsApp**: Use scrape-and-send-whatsapp tool to scrape and send in one action
+7. **For phone validation**: Use validate-phone tool to check phone number format
 
 **WhatsApp Workflow**:
 When user wants to scrape a site and send via WhatsApp:
@@ -575,14 +448,12 @@ Always be transparent about which tools you're using and why. Provide context an
 
   model: openai('gpt-4o-mini'),
   
-  // Add all tools including new WhatsApp and RAG tools
+  // Add all tools including WhatsApp tools
   tools: {
     webSearchTool,
     webScrapeTool,
     calculatorTool,
     knowledgeSearchTool,
-    documentProcessTool,      // RAG tool for processing documents
-    documentSearchTool,       // RAG tool for searching documents
     whatsappSendTool,         // WhatsApp messaging tool
     scrapeAndSendTool,        // Combined scrape and WhatsApp send tool
     validatePhoneTool,        // Phone number validation tool

@@ -4,7 +4,8 @@ import { useState, useRef, useEffect } from 'react';
 import { useChat } from 'ai/react';
 import Image from "next/image";
 import ClientOnly from '../components/ClientOnly';
-import DocumentUpload from '../components/DocumentUpload';
+// Temporarily disabled document upload due to RAG dependency issues
+// import DocumentUpload from '../components/DocumentUpload';
 import { useBrowserExtensionFix } from '../hooks/useBrowserExtensionFix';
 
 interface Message {
@@ -18,7 +19,8 @@ interface Message {
 export default function ChatPage() {
   const [threadId, setThreadId] = useState<string>('');
   const [resourceId, setResourceId] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'chat' | 'upload'>('chat');
+  // Temporarily disabled document upload due to RAG dependency issues
+  // const [activeTab, setActiveTab] = useState<'chat' | 'upload'>('chat');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Handle browser extension interference
@@ -164,40 +166,21 @@ export default function ChatPage() {
               </div>
               <div suppressHydrationWarning>
                 <h1 className="text-xl font-bold text-gray-800">Gal Agent</h1>
-                <p className="text-sm text-gray-500">AI Assistant with RAG, Web Search & Memory</p>
+                <p className="text-sm text-gray-500">AI Assistant with WhatsApp, Web Search & Memory</p>
               </div>
             </div>
             
-            {/* Tab Navigation */}
-            <div className="flex bg-gray-100 rounded-lg p-1" suppressHydrationWarning>
-              <button
-                onClick={() => setActiveTab('chat')}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  activeTab === 'chat'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-800'
-                }`}
-              >
-                💬 Chat
-              </button>
-              <button
-                onClick={() => setActiveTab('upload')}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  activeTab === 'upload'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-800'
-                }`}
-              >
-                📄 Upload
-              </button>
+            {/* Status indicator */}
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <span>WhatsApp Ready</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Tab Content */}
-      {activeTab === 'chat' ? (
-        <>
+      {/* Chat Content */}
+      <>
           {/* Chat Messages */}
           <div className="max-w-4xl mx-auto px-4 py-6" suppressHydrationWarning>
             <div className="space-y-6" suppressHydrationWarning>
@@ -210,13 +193,15 @@ export default function ChatPage() {
                       <br /><br />
                       🌐 <strong>Web Search</strong> - I can search the internet for current information<br />
                       🔍 <strong>Web Scraping</strong> - Extract and analyze content from any webpage<br />
+                      📱 <strong>WhatsApp Messaging</strong> - Send messages and scraped content via WhatsApp<br />
                       🧮 <strong>Calculations</strong> - Perform complex mathematical calculations<br />
                       🧠 <strong>Memory</strong> - Remember our conversations and your preferences<br />
-                      📚 <strong>Knowledge Search</strong> - Find information from our past discussions<br />
-                      📄 <strong>Document Processing</strong> - Upload and process documents for intelligent search<br />
-                      🔍 <strong>Document Search</strong> - Search through your uploaded documents
+                      📚 <strong>Knowledge Search</strong> - Find information from our past discussions
                       <br /><br />
-                      You can upload documents using the "Upload" tab, then ask me questions about them here in the chat!
+                      <strong>🚀 Try asking me:</strong><br />
+                      • "Scrape https://news.ycombinator.com and send it to my WhatsApp"<br />
+                      • "Search for the latest AI news and WhatsApp it to me"<br />
+                      • "Get content from [any website] and send via WhatsApp"
                       <br /><br />
                       What would you like to explore today?
                     </div>
@@ -328,7 +313,7 @@ export default function ChatPage() {
                 <input
                   value={input}
                   onChange={handleInputChange}
-                  placeholder="Ask Gal Agent anything... (try: search for AI news, scrape a website, search my documents, or do some math)"
+                  placeholder="Ask Gal Agent anything... (try: scrape a website and send to WhatsApp, search for news, or do some math)"
                   className="flex-1 px-4 py-3 border-2 border-gray-400 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black bg-white"
                   style={{
                     backgroundColor: '#ffffff',
@@ -349,15 +334,9 @@ export default function ChatPage() {
             </div>
           </div>
         </>
-      ) : (
-        /* Upload Tab Content */
-        <div className="max-w-4xl mx-auto px-4 py-6" suppressHydrationWarning>
-          <DocumentUpload />
-        </div>
-      )}
 
-        {/* Bottom padding to prevent content from being hidden behind fixed input - only for chat */}
-        {activeTab === 'chat' && <div className="h-24" suppressHydrationWarning></div>}
+        {/* Bottom padding to prevent content from being hidden behind fixed input */}
+        <div className="h-24" suppressHydrationWarning></div>
       </div>
     </ClientOnly>
   );
