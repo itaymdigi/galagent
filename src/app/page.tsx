@@ -91,10 +91,20 @@ export default function ChatPage() {
   const renderToolInvocation = (tool: any) => {
     const getToolIcon = (toolName: string) => {
       switch (toolName) {
+        case 'web-search': return '🌐';
+        case 'web-scrape': return '🔍';
+        case 'calculator': return '🧮';
+        case 'knowledge-search': return '📚';
+        case 'whatsapp-send': return '📱';
+        case 'scrape-and-send-whatsapp': return '📱🔍';
+        case 'validate-phone': return '📞';
         case 'webSearchTool': return '🌐';
         case 'webScrapeTool': return '🔍';
         case 'calculatorTool': return '🧮';
         case 'knowledgeSearchTool': return '📚';
+        case 'whatsappSendTool': return '📱';
+        case 'scrapeAndSendTool': return '📱🔍';
+        case 'validatePhoneTool': return '📞';
         case 'documentProcessTool': return '📄';
         case 'documentSearchTool': return '🔍';
         default: return '🔧';
@@ -103,10 +113,20 @@ export default function ChatPage() {
 
     const getToolName = (toolName: string) => {
       switch (toolName) {
+        case 'web-search': return 'Web Search';
+        case 'web-scrape': return 'Web Scraping';
+        case 'calculator': return 'Calculator';
+        case 'knowledge-search': return 'Knowledge Search';
+        case 'whatsapp-send': return 'WhatsApp Send';
+        case 'scrape-and-send-whatsapp': return 'Scrape & Send WhatsApp';
+        case 'validate-phone': return 'Phone Validation';
         case 'webSearchTool': return 'Web Search';
         case 'webScrapeTool': return 'Web Scraping';
         case 'calculatorTool': return 'Calculator';
         case 'knowledgeSearchTool': return 'Knowledge Search';
+        case 'whatsappSendTool': return 'WhatsApp Send';
+        case 'scrapeAndSendTool': return 'Scrape & Send WhatsApp';
+        case 'validatePhoneTool': return 'Phone Validation';
         case 'documentProcessTool': return 'Document Processing';
         case 'documentSearchTool': return 'Document Search';
         default: return toolName;
@@ -118,26 +138,36 @@ export default function ChatPage() {
         <div className="flex items-center gap-2 text-sm font-medium text-blue-700 mb-1">
           <span>{getToolIcon(tool.toolName)}</span>
           <span>{getToolName(tool.toolName)}</span>
+          <span className="text-xs text-gray-500">({tool.toolName})</span>
         </div>
         
         {/* Tool Arguments */}
-        <div className="text-xs text-gray-600 mb-2">
-          {Object.entries(tool.args).map(([key, value]) => (
-            <div key={key}>
-              <span className="font-medium">{key}:</span> {String(value)}
-            </div>
-          ))}
-        </div>
+        {tool.args && Object.keys(tool.args).length > 0 && (
+          <div className="text-xs text-gray-600 mb-2">
+            <div className="font-medium mb-1">Arguments:</div>
+            {Object.entries(tool.args).map(([key, value]) => (
+              <div key={key} className="ml-2">
+                <span className="font-medium">{key}:</span> {String(value)}
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Tool Result */}
         {tool.result && (
           <div className="bg-white rounded p-2 text-sm">
             <div className="font-medium text-gray-700 mb-1">Result:</div>
-            <pre className="whitespace-pre-wrap text-gray-600">
-              {typeof tool.result === 'object' 
-                ? JSON.stringify(tool.result, null, 2) 
-                : String(tool.result)}
-            </pre>
+            <div className="text-gray-600">
+              {typeof tool.result === 'object' ? (
+                <pre className="whitespace-pre-wrap text-xs">
+                  {JSON.stringify(tool.result, null, 2)}
+                </pre>
+              ) : (
+                <div className="whitespace-pre-wrap">
+                  {String(tool.result)}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -209,16 +239,7 @@ export default function ChatPage() {
                 </div>
               )}
               
-              {/* Debug: Show message count and raw data */}
-              {messages.length > 0 && (
-                <div className="bg-yellow-100 border border-yellow-300 rounded p-4 text-sm text-yellow-800 mb-4">
-                  <div className="font-bold">Debug Info:</div>
-                  <div>Messages received: {messages.length}</div>
-                  <div>Latest message: {JSON.stringify(messages[messages.length - 1]).slice(0, 200)}...</div>
-                  <div>Loading: {isLoading ? 'Yes' : 'No'}</div>
-                  <div>Error: {error ? error.message : 'None'}</div>
-                </div>
-              )}
+
 
               {messages.map((message, index) => (
                 <div
@@ -237,10 +258,7 @@ export default function ChatPage() {
                       color: message.role === 'user' ? '#ffffff' : '#000000'
                     }}
                   >
-                    {/* Debug info */}
-                    <div className="text-xs opacity-50 mb-1">
-                      {message.role} - {index + 1} - {message.content?.length || 0} chars
-                    </div>
+
 
                     {/* Tool Invocations */}
                     {message.toolInvocations && message.toolInvocations.length > 0 && (
@@ -261,10 +279,7 @@ export default function ChatPage() {
                       {message.content || 'No content'}
                     </div>
 
-                    {/* Raw content for debugging */}
-                    <div className="text-xs mt-2 opacity-50 max-h-20 overflow-hidden">
-                      Raw: {JSON.stringify(message.content).slice(0, 100)}...
-                    </div>
+
 
                     {/* Timestamp */}
                     <div

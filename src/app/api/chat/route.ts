@@ -12,6 +12,7 @@ export async function GET() {
     env_check: {
       openai: !!process.env.OPENAI_API_KEY,
       tavily: !!process.env.TAVILY_API_KEY,
+      wapulse: !!process.env.WAPULSE_TOKEN && !!process.env.WAPULSE_INSTANCE_ID,
     }
   }), {
     status: 200,
@@ -63,15 +64,19 @@ export async function POST(req: NextRequest) {
       return new Response('Invalid message format', { status: 400 });
     }
 
-    console.log('💭 User message:', latestMessage.content.slice(0, 50) + '...');
+    console.log('💭 User message:', latestMessage.content.slice(0, 100) + '...');
 
     try {
       console.log('🚀 Starting agent stream...');
       
-      const agentResult = await agent.stream(latestMessage.content, {
+      // Use the agent's stream method with proper memory configuration
+      const streamResult = await agent.stream(latestMessage.content, {
         memory: {
           thread: threadId,
           resource: resourceId,
+        },
+        onStepFinish: (step) => {
+          console.log('🔧 Step finished:', JSON.stringify(step, null, 2));
         },
       });
 
@@ -86,16 +91,19 @@ export async function POST(req: NextRequest) {
           try {
             console.log('📡 Starting stream...');
             
-            for await (const chunk of agentResult.textStream) {
-              chunkCount++;
-              console.log(`📤 Chunk ${chunkCount}:`, chunk.slice(0, 50) + '...');
-              
-              // Format as AI SDK text part: 0:"content"
-              const formattedChunk = `0:${JSON.stringify(chunk)}\n`;
-              controller.enqueue(encoder.encode(formattedChunk));
+            // Stream text content from Mastra agent
+            if (streamResult && streamResult.textStream) {
+              for await (const chunk of streamResult.textStream) {
+                chunkCount++;
+                console.log(`📤 Text Chunk ${chunkCount}:`, chunk.slice(0, 50) + '...');
+                
+                // Format as AI SDK text part: 0:"content"
+                const formattedChunk = `0:${JSON.stringify(chunk)}\n`;
+                controller.enqueue(encoder.encode(formattedChunk));
+              }
             }
             
-            console.log(`✅ Stream completed with ${chunkCount} chunks`);
+            console.log(`✅ Stream completed with ${chunkCount} text chunks`);
             
             // Send finish message with proper format
             const finishMessage = `d:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":${chunkCount}}}\n`;
@@ -104,7 +112,15 @@ export async function POST(req: NextRequest) {
             controller.close();
           } catch (streamError) {
             console.error('❌ Stream error:', streamError);
-            controller.error(streamError);
+            
+            // Send error message
+            const errorMsg = `0:${JSON.stringify(`Error: ${streamError instanceof Error ? streamError.message : 'Unknown streaming error'}`)}\n`;
+            controller.enqueue(encoder.encode(errorMsg));
+            
+            const finishMessage = `d:{"finishReason":"error","usage":{"promptTokens":0,"completionTokens":0}}\n`;
+            controller.enqueue(encoder.encode(finishMessage));
+            
+            controller.close();
           }
         },
       });
