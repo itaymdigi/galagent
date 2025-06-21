@@ -4,13 +4,10 @@
       "maxDuration": 60
     }
   },
-  "env": {
-    "OPENAI_API_KEY": "@openai_api_key",
-    "DATABASE_URL": "@database_url"
-  },
+
   "build": {
     "env": {
-      "NEXT_PUBLIC_APP_URL": "https://your-app.vercel.app"
+      "NEXT_PUBLIC_APP_URL": "https://galagent.vercel.app"
     }
   },
   "headers": [

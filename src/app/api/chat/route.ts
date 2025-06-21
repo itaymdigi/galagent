@@ -3,15 +3,42 @@ import { mastra } from '../../../mastra/index';
 
 export const runtime = 'nodejs';
 
+// Handle GET requests (for health checks, preflight, etc.)
+export async function GET() {
+  return new Response(JSON.stringify({ 
+    status: 'ok', 
+    message: 'Chat API is running',
+    timestamp: new Date().toISOString()
+  }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
 export async function POST(req: NextRequest) {
   try {
+    // Check for required environment variables
+    if (!process.env.OPENAI_API_KEY) {
+      return new Response(JSON.stringify({ 
+        error: 'Missing OPENAI_API_KEY environment variable' 
+      }), { 
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
     const { messages, threadId, resourceId } = await req.json();
 
     // Get the agent from Mastra
     const agent = mastra.getAgent('assistantAgent');
 
     if (!agent) {
-      return new Response('Agent not found', { status: 404 });
+      return new Response(JSON.stringify({ 
+        error: 'Agent not found - check Mastra configuration' 
+      }), { 
+        status: 404,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
 
     // Get the latest user message
