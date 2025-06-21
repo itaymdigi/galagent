@@ -10,7 +10,7 @@ import { createProductionStorage, productionConfig } from '../config/production'
 const { storage, vector } = createProductionStorage();
 const memory = new Memory({
   storage,
-  vector,
+  ...(vector && { vector }), // Only include vector if it exists
   options: productionConfig.memory,
 });
 

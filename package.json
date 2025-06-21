@@ -48,6 +48,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.0.2",
+    "@stagewise-plugins/react": "^0.4.8",
+    "@stagewise/toolbar-next": "^0.4.8",
     "@types/node": "^20.0.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",

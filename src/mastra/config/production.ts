@@ -6,13 +6,12 @@ import { UpstashStore, UpstashVector } from '@mastra/upstash';
 export function createProductionStorage() {
   // PostgreSQL (Supabase, Neon, Railway, etc.)
   if (process.env.DATABASE_URL) {
+    // For production, disable vector storage temporarily if no cloud vector DB is available
     return {
       storage: new PostgresStore({
         connectionString: process.env.DATABASE_URL,
       }),
-      vector: new LibSQLVector({
-        connectionUrl: process.env.LIBSQL_URL || 'file:./mastra.db',
-      }),
+      vector: undefined, // Disable vector storage for now
     };
   }
 
