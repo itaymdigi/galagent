@@ -4,9 +4,16 @@ import { UpstashStore, UpstashVector } from '@mastra/upstash';
 
 // Production database configuration based on environment
 export function createProductionStorage() {
+  // For production deployment without database, use in-memory storage
+  if (process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL && !process.env.UPSTASH_REDIS_REST_URL) {
+    return {
+      storage: undefined, // Disable storage for now
+      vector: undefined,  // Disable vector storage for now
+    };
+  }
+
   // PostgreSQL (Supabase, Neon, Railway, etc.)
   if (process.env.DATABASE_URL) {
-    // For production, disable vector storage temporarily if no cloud vector DB is available
     return {
       storage: new PostgresStore({
         connectionString: process.env.DATABASE_URL,
@@ -43,13 +50,13 @@ export function createProductionStorage() {
     };
   }
 
-  // Fallback to local LibSQL (development)
+  // Fallback for development
   return {
     storage: new LibSQLStore({
-      url: process.env.LIBSQL_URL || 'file:./mastra.db',
+      url: 'file:./mastra.db',
     }),
     vector: new LibSQLVector({
-      connectionUrl: process.env.LIBSQL_URL || 'file:./mastra.db',
+      connectionUrl: 'file:./mastra.db',
     }),
   };
 }

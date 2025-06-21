@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { useChat } from 'ai/react';
 import Image from "next/image";
+import ClientOnly from '../components/ClientOnly';
+import { useBrowserExtensionFix } from '../hooks/useBrowserExtensionFix';
 
 interface Message {
   id: string;
@@ -17,6 +19,9 @@ export default function ChatPage() {
   const [resourceId, setResourceId] = useState<string>('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Handle browser extension interference
+  useBrowserExtensionFix();
+
   // Initialize IDs only on client side to avoid hydration mismatch
   useEffect(() => {
     if (!threadId) {
@@ -29,7 +34,7 @@ export default function ChatPage() {
 
   const [isInitialized, setIsInitialized] = useState(false);
   
-  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
+  const { messages, input, handleInputChange, handleSubmit, isLoading, error } = useChat({
     api: '/api/chat',
     body: {
       threadId,
@@ -37,6 +42,16 @@ export default function ChatPage() {
     },
     initialMessages: [],
     id: threadId, // This helps prevent duplicate chat instances
+    onError: (error) => {
+      console.error('❌ Chat error:', error);
+    },
+    onFinish: (message) => {
+      console.log('✅ Chat finished:', message);
+    },
+    onResponse: (response) => {
+      console.log('📡 Response received:', response);
+    },
+    streamMode: 'text',
   });
 
   // Mark as initialized after hydration
@@ -48,6 +63,7 @@ export default function ChatPage() {
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
+    console.log('📨 Messages updated:', messages.length, messages);
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
@@ -122,15 +138,25 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+    <ClientOnly fallback={
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center" suppressHydrationWarning>
+        <div className="text-center" suppressHydrationWarning>
+          <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-2xl mx-auto mb-4" suppressHydrationWarning>
+            G
+          </div>
+          <div className="text-gray-600" suppressHydrationWarning>Loading Gal Agent...</div>
+        </div>
+      </div>
+    }>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50" suppressHydrationWarning>
       {/* Header */}
-      <div className="bg-white/80 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 py-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
+      <div className="bg-white/80 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-10" suppressHydrationWarning>
+        <div className="max-w-4xl mx-auto px-4 py-4" suppressHydrationWarning>
+          <div className="flex items-center gap-3" suppressHydrationWarning>
+            <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-lg" suppressHydrationWarning>
               G
             </div>
-            <div>
+            <div suppressHydrationWarning>
               <h1 className="text-xl font-bold text-gray-800">Gal Agent</h1>
               <p className="text-sm text-gray-500">AI Assistant with Web Search, Scraping & Memory</p>
             </div>
@@ -139,8 +165,8 @@ export default function ChatPage() {
       </div>
 
       {/* Chat Messages */}
-      <div className="max-w-4xl mx-auto px-4 py-6">
-        <div className="space-y-6">
+      <div className="max-w-4xl mx-auto px-4 py-6" suppressHydrationWarning>
+        <div className="space-y-6" suppressHydrationWarning>
           {/* Welcome Message - only show after initialization */}
           {isInitialized && messages.length === 0 && (
             <div className="flex justify-start">
@@ -160,18 +186,39 @@ export default function ChatPage() {
             </div>
           )}
           
-          {messages.map((message) => (
+          {/* Debug: Show message count and raw data */}
+          {messages.length > 0 && (
+            <div className="bg-yellow-100 border border-yellow-300 rounded p-4 text-sm text-yellow-800 mb-4">
+              <div className="font-bold">Debug Info:</div>
+              <div>Messages received: {messages.length}</div>
+              <div>Latest message: {JSON.stringify(messages[messages.length - 1]).slice(0, 200)}...</div>
+              <div>Loading: {isLoading ? 'Yes' : 'No'}</div>
+              <div>Error: {error ? error.message : 'None'}</div>
+            </div>
+          )}
+
+          {messages.map((message, index) => (
             <div
               key={message.id}
-              className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} mb-4`}
             >
               <div
-                className={`max-w-3xl rounded-2xl px-4 py-3 ${
+                className={`max-w-3xl rounded-2xl px-4 py-3 border-2 ${
                   message.role === 'user'
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-white border border-gray-200 shadow-sm'
+                    ? 'bg-blue-500 text-white border-blue-600'
+                    : 'bg-white text-black border-gray-300 shadow-lg'
                 }`}
+                style={{
+                  minHeight: '60px',
+                  backgroundColor: message.role === 'user' ? '#3b82f6' : '#ffffff',
+                  color: message.role === 'user' ? '#ffffff' : '#000000'
+                }}
               >
+                {/* Debug info */}
+                <div className="text-xs opacity-50 mb-1">
+                  {message.role} - {index + 1} - {message.content?.length || 0} chars
+                </div>
+
                 {/* Tool Invocations */}
                 {message.toolInvocations && message.toolInvocations.length > 0 && (
                   <div className="mb-3">
@@ -179,21 +226,30 @@ export default function ChatPage() {
                   </div>
                 )}
 
-                {/* Message Content */}
+                {/* Message Content - Force visible */}
                 <div
-                  className={`${message.role === 'user' ? 'text-white' : 'text-gray-800'}`}
-                  dangerouslySetInnerHTML={{
-                    __html: formatMessage(message.content),
+                  className="font-medium"
+                  style={{
+                    color: message.role === 'user' ? '#ffffff' : '#000000',
+                    fontSize: '16px',
+                    lineHeight: '1.5'
                   }}
-                />
+                >
+                  {message.content || 'No content'}
+                </div>
+
+                {/* Raw content for debugging */}
+                <div className="text-xs mt-2 opacity-50 max-h-20 overflow-hidden">
+                  Raw: {JSON.stringify(message.content).slice(0, 100)}...
+                </div>
 
                 {/* Timestamp */}
                 <div
                   className={`text-xs mt-2 ${
-                    message.role === 'user' ? 'text-blue-100' : 'text-gray-400'
+                    message.role === 'user' ? 'text-blue-100' : 'text-gray-500'
                   }`}
                 >
-                  {message.createdAt?.toLocaleTimeString()}
+                  {message.createdAt?.toLocaleTimeString() || 'No timestamp'}
                 </div>
               </div>
             </div>
@@ -211,19 +267,37 @@ export default function ChatPage() {
             </div>
           )}
 
-          <div ref={messagesEndRef} />
+          {/* Error indicator */}
+          {error && (
+            <div className="flex justify-start">
+              <div className="bg-red-50 border border-red-200 rounded-2xl px-4 py-3 shadow-sm">
+                <div className="flex items-center gap-2 text-red-600">
+                  <span>❌</span>
+                  <span>Error: {error.message}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div ref={messagesEndRef} suppressHydrationWarning />
         </div>
       </div>
 
       {/* Input Form */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-sm border-t border-gray-200">
-        <div className="max-w-4xl mx-auto px-4 py-4">
+      <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-sm border-t border-gray-200" suppressHydrationWarning>
+        <div className="max-w-4xl mx-auto px-4 py-4" suppressHydrationWarning>
           <form onSubmit={handleSubmit} className="flex gap-3">
             <input
               value={input}
               onChange={handleInputChange}
               placeholder="Ask Gal Agent anything... (try: search for AI news, scrape a website, or do some math)"
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="flex-1 px-4 py-3 border-2 border-gray-400 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black bg-white"
+              style={{
+                backgroundColor: '#ffffff',
+                color: '#000000',
+                fontSize: '16px',
+                border: '2px solid #666666'
+              }}
               disabled={isLoading}
             />
             <button
@@ -237,8 +311,9 @@ export default function ChatPage() {
         </div>
       </div>
 
-      {/* Bottom padding to prevent content from being hidden behind fixed input */}
-      <div className="h-24"></div>
-    </div>
+        {/* Bottom padding to prevent content from being hidden behind fixed input */}
+        <div className="h-24" suppressHydrationWarning></div>
+      </div>
+    </ClientOnly>
   );
 }

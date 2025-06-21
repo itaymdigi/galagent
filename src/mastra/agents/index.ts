@@ -8,11 +8,11 @@ import { createProductionStorage, productionConfig } from '../config/production'
 
 // Configure memory with working memory per user (production-ready)
 const { storage, vector } = createProductionStorage();
-const memory = new Memory({
+const memory = storage ? new Memory({
   storage,
   ...(vector && { vector }), // Only include vector if it exists
   options: productionConfig.memory,
-});
+}) : undefined;
 
 // Real Tavily web search tool
 const webSearchTool = createTool({
@@ -202,9 +202,20 @@ export const assistantAgent = new Agent({
 - Remember user preferences and adapt your communication style
 - Suggest relevant actions based on context
 
+**CRITICAL LANGUAGE RULE**:
+🌍 **ALWAYS respond in the SAME LANGUAGE as the user's input**:
+- If user writes in English → respond in English
+- If user writes in Hebrew → respond in Hebrew (עברית)
+- If user writes in Arabic → respond in Arabic (العربية)
+- If user writes in Spanish → respond in Spanish
+- If user writes in French → respond in French
+- If user writes in any other language → respond in that language
+- Maintain the same language throughout the entire conversation unless the user switches languages
+- When using tools (web search, scraping), still respond in the user's language but include original content when relevant
+
 **Guidelines**:
-1. **First-time users**: Introduce yourself and ask for their name and preferences
-2. **Returning users**: Greet them by name and reference relevant past conversations
+1. **First-time users**: Introduce yourself and ask for their name and preferences (in their language)
+2. **Returning users**: Greet them by name and reference relevant past conversations (in their language)
 3. **Use tools proactively**: If a user asks about current events, search the web
 4. **Web scraping**: When users share URLs, offer to extract and summarize content
 5. **Calculations**: Handle any math requests, from simple arithmetic to complex expressions
@@ -216,10 +227,15 @@ export const assistantAgent = new Agent({
 - Use calculator for any mathematical operations
 - Use knowledge search to find relevant past conversations or stored information
 
-Always be helpful, accurate, and remember that you're here to make the user's life easier!`,
+**Language Examples**:
+- User: "Hello, how are you?" → Respond: "Hello! I'm doing great, thank you for asking..."
+- User: "שלום, איך אתה?" → Respond: "שלום! אני בסדר גמור, תודה שאתה שואל..."
+- User: "مرحبا، كيف حالك؟" → Respond: "مرحبا! أنا بخير، شكرا لسؤالك..."
+
+Always be helpful, accurate, and remember that you're here to make the user's life easier in their preferred language!`,
 
   model: openai('gpt-4o'), // Use GPT-4o for best performance
-  memory,
+  ...(memory && { memory }), // Only include memory if it exists
   tools: {
     webSearch: webSearchTool,
     webScrape: webScrapeTool,
