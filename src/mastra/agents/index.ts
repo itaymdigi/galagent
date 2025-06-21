@@ -3,6 +3,9 @@ import { Agent } from '@mastra/core/agent';
 import { Memory } from '@mastra/memory';
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
+// Add RAG imports
+import { MDocument } from '@mastra/rag';
+import { embedMany } from 'ai';
 
 import { createProductionStorage, productionConfig } from '../config/production';
 
@@ -13,6 +16,334 @@ const memory = storage ? new Memory({
   ...(vector && { vector }), // Only include vector if it exists
   options: productionConfig.memory,
 }) : undefined;
+
+// WhatsApp message sending tool
+const whatsappSendTool = createTool({
+  id: 'whatsapp-send',
+  description: 'Send a WhatsApp message to a phone number. Use this when user wants to send scraped information or any message via WhatsApp.',
+  inputSchema: z.object({
+    phoneNumber: z.string().describe('Phone number with country code (no + or spaces, e.g., 1234567890)'),
+    message: z.string().describe('The message to send'),
+    type: z.enum(['user', 'group']).default('user').describe('Type of recipient: user for individual, group for WhatsApp group'),
+  }),
+  execute: async ({ context }) => {
+    try {
+      // Validate phone number format
+      const phoneRegex = /^\d{1,4}\d{6,15}$/;
+      if (!phoneRegex.test(context.phoneNumber)) {
+        return {
+          success: false,
+          error: 'Invalid phone number format. Please provide phone number with country code (no + or spaces)',
+          phoneNumber: context.phoneNumber,
+        };
+      }
+
+      // Get WaPulse credentials from environment
+      const instanceID = process.env.WAPULSE_INSTANCE_ID;
+      const token = process.env.WAPULSE_TOKEN;
+
+      if (!instanceID || !token) {
+        return {
+          success: false,
+          error: 'WaPulse credentials not configured. Please set WAPULSE_INSTANCE_ID and WAPULSE_TOKEN environment variables.',
+        };
+      }
+
+      // Send WhatsApp message using WaPulse API
+      const response = await fetch(`https://wapulse.com/api/v1/instances/${instanceID}/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          to: context.phoneNumber,
+          message: context.message,
+          type: context.type,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`WaPulse API error: ${response.status} - ${errorData.message || 'Unknown error'}`);
+      }
+
+      const result = await response.json();
+      
+      return {
+        success: true,
+        message: 'WhatsApp message sent successfully',
+        phoneNumber: context.phoneNumber,
+        messageLength: context.message.length,
+        messageId: result.messageId || 'unknown',
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: `Failed to send WhatsApp message: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        phoneNumber: context.phoneNumber,
+      };
+    }
+  },
+});
+
+// Enhanced web scraping tool with WhatsApp integration
+const scrapeAndSendTool = createTool({
+  id: 'scrape-and-send-whatsapp',
+  description: 'Scrape a website and send the extracted information via WhatsApp. This combines web scraping with WhatsApp messaging.',
+  inputSchema: z.object({
+    url: z.string().url().describe('The URL to scrape'),
+    phoneNumber: z.string().describe('Phone number to send the scraped content to (with country code, no + or spaces)'),
+    customMessage: z.string().optional().describe('Optional custom message to include with the scraped content'),
+    maxContentLength: z.number().optional().default(1000).describe('Maximum length of scraped content to include in message'),
+  }),
+  execute: async ({ context }) => {
+    try {
+      // First, scrape the website
+      const scrapeResponse = await fetch(context.url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        },
+      });
+
+      if (!scrapeResponse.ok) {
+        throw new Error(`Failed to fetch URL: ${scrapeResponse.status}`);
+      }
+
+      const html = await scrapeResponse.text();
+      
+      // Extract content and title
+      const cleanContent = html
+        .replace(/<script[^>]*>.*?<\/script>/gi, '')
+        .replace(/<style[^>]*>.*?<\/style>/gi, '')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      const titleMatch = html.match(/<title[^>]*>(.*?)<\/title>/i);
+      const title = titleMatch ? titleMatch[1].trim() : 'Website Content';
+
+      // Truncate content if too long
+      const truncatedContent = cleanContent.length > context.maxContentLength 
+        ? cleanContent.slice(0, context.maxContentLength) + '...' 
+        : cleanContent;
+
+      // Format the message
+      let message = `📄 *${title}*\n\n`;
+      if (context.customMessage) {
+        message += `${context.customMessage}\n\n`;
+      }
+      message += `🔗 *Source:* ${context.url}\n\n`;
+      message += `📝 *Content:*\n${truncatedContent}`;
+
+      // Send via WhatsApp
+      const whatsappResult = await whatsappSendTool.execute({
+        context: {
+          phoneNumber: context.phoneNumber,
+          message: message,
+          type: 'user' as const,
+        }
+      });
+
+      return {
+        scrapeSuccess: true,
+        whatsappResult,
+        scrapedData: {
+          url: context.url,
+          title,
+          contentLength: cleanContent.length,
+          truncatedLength: truncatedContent.length,
+        },
+      };
+    } catch (error) {
+      return {
+        scrapeSuccess: false,
+        error: `Scrape and send failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        url: context.url,
+        phoneNumber: context.phoneNumber,
+      };
+    }
+  },
+});
+
+// WhatsApp phone number validation tool
+const validatePhoneTool = createTool({
+  id: 'validate-phone',
+  description: 'Validate if a phone number is in the correct format for WhatsApp messaging',
+  inputSchema: z.object({
+    phoneNumber: z.string().describe('Phone number to validate'),
+  }),
+  execute: async ({ context }) => {
+    const phoneRegex = /^\d{1,4}\d{6,15}$/;
+    const isValid = phoneRegex.test(context.phoneNumber);
+    
+    return {
+      phoneNumber: context.phoneNumber,
+      isValid,
+      format: isValid ? 'correct' : 'invalid',
+      message: isValid 
+        ? 'Phone number format is valid for WhatsApp messaging'
+        : 'Invalid format. Please provide phone number with country code (no + or spaces). Example: 1234567890',
+      expectedFormat: 'Country code + phone number (digits only, no + or spaces)',
+      example: '1234567890 (for US number +1-234-567-890)',
+    };
+  },
+});
+
+// Document processing tool for RAG
+const documentProcessTool = createTool({
+  id: 'document-process',
+  description: 'Process and store documents (text, markdown, HTML, JSON) for intelligent retrieval using RAG',
+  inputSchema: z.object({
+    content: z.string().describe('The document content to process'),
+    title: z.string().describe('Title of the document'),
+    source: z.string().describe('Source or identifier for the document'),
+    type: z.enum(['text', 'markdown', 'html', 'json']).default('text').describe('Type of document content'),
+  }),
+  execute: async ({ context }) => {
+    try {
+      // Create document based on type
+      let doc;
+      switch (context.type) {
+        case 'markdown':
+          doc = MDocument.fromMarkdown(context.content, { 
+            title: context.title, 
+            source: context.source 
+          });
+          break;
+        case 'html':
+          doc = MDocument.fromHTML(context.content, { 
+            title: context.title, 
+            source: context.source 
+          });
+          break;
+        case 'json':
+          doc = MDocument.fromJSON(context.content, { 
+            title: context.title, 
+            source: context.source 
+          });
+          break;
+        default:
+          doc = MDocument.fromText(context.content, { 
+            title: context.title, 
+            source: context.source 
+          });
+      }
+
+      // Chunk the document
+      const chunks = await doc.chunk({
+        strategy: context.type === 'markdown' ? 'markdown' : 'recursive',
+        size: 512,
+        overlap: 50,
+        extract: {
+          summary: true,
+          keywords: true,
+        },
+      });
+
+      // Generate embeddings for chunks
+      const { embeddings } = await embedMany({
+        model: openai.embedding('text-embedding-3-small'),
+        values: chunks.map(chunk => chunk.text),
+      });
+
+      // Store in vector database if available
+      if (vector && chunks.length > 0) {
+        const vectors = chunks.map((chunk, index) => ({
+          id: `${context.source}-chunk-${index}`,
+          values: embeddings[index],
+          metadata: {
+            text: chunk.text,
+            title: context.title,
+            source: context.source,
+            type: context.type,
+            chunkIndex: index,
+            sectionSummary: chunk.sectionSummary,
+            excerptKeywords: chunk.excerptKeywords,
+          },
+        }));
+
+        await vector.upsert({
+          indexName: 'documents',
+          vectors,
+        });
+      }
+
+      return {
+        success: true,
+        message: `Document processed successfully: ${chunks.length} chunks created`,
+        title: context.title,
+        source: context.source,
+        type: context.type,
+        chunks: chunks.length,
+        totalCharacters: context.content.length,
+        hasVectorStorage: !!vector,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: `Document processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        title: context.title,
+        source: context.source,
+      };
+    }
+  },
+});
+
+// Document search tool for RAG retrieval
+const documentSearchTool = createTool({
+  id: 'document-search',
+  description: 'Search through processed documents using semantic similarity',
+  inputSchema: z.object({
+    query: z.string().describe('Search query to find relevant documents'),
+    limit: z.number().optional().default(5).describe('Number of results to return'),
+    source: z.string().optional().describe('Filter by document source'),
+  }),
+  execute: async ({ context }) => {
+    try {
+      if (!vector) {
+        return {
+          error: 'Vector storage not available',
+          results: [],
+        };
+      }
+
+      // Generate embedding for the query
+      const { embedding } = await embedMany({
+        model: openai.embedding('text-embedding-3-small'),
+        values: [context.query],
+      }).then(result => ({ embedding: result.embeddings[0] }));
+
+      // Search in vector database
+      const results = await vector.query({
+        indexName: 'documents',
+        queryVector: embedding,
+        topK: context.limit,
+        filter: context.source ? { source: context.source } : undefined,
+      });
+
+      return {
+        query: context.query,
+        results: results.map(result => ({
+          text: result.metadata.text,
+          title: result.metadata.title,
+          source: result.metadata.source,
+          score: result.score,
+          summary: result.metadata.sectionSummary,
+          keywords: result.metadata.excerptKeywords,
+        })),
+        totalResults: results.length,
+      };
+    } catch (error) {
+      return {
+        error: `Document search failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        query: context.query,
+        results: [],
+      };
+    }
+  },
+});
 
 // Real Tavily web search tool
 const webSearchTool = createTool({
@@ -187,63 +518,76 @@ const knowledgeSearchTool = createTool({
 // Create the main assistant agent
 export const assistantAgent = new Agent({
   name: 'Gal Agent',
-  description: 'An intelligent AI assistant with web search, scraping, memory, and calculation capabilities',
+  description: 'An intelligent AI assistant with web search, scraping, memory, calculation, RAG document processing, and WhatsApp messaging capabilities',
   instructions: `You are Gal Agent, an advanced AI assistant with powerful capabilities:
 
 🌐 **Web Search & Information**: Use Tavily API to search for current information
 🔍 **Web Scraping**: Extract content from any webpage
+📱 **WhatsApp Messaging**: Send messages and scraped content via WhatsApp
 🧮 **Calculations**: Perform complex mathematical calculations
 🧠 **Memory**: Remember user preferences, conversations, and context across sessions
 📚 **Knowledge Search**: Search through stored knowledge and past conversations
+📄 **Document Processing**: Process and store documents for intelligent retrieval (RAG)
+🔍 **Document Search**: Search through processed documents using semantic similarity
+
+**WhatsApp Integration**:
+- Send WhatsApp messages to any phone number
+- Combine web scraping with WhatsApp messaging
+- Validate phone number formats
+- When user asks to scrape a site and send via WhatsApp, always ask for the phone number first
+- Format messages nicely with emojis and structure for WhatsApp
+
+**Document Processing Capabilities**:
+- Process text, markdown, HTML, and JSON documents
+- Automatically chunk documents for optimal retrieval
+- Generate embeddings and store in vector database
+- Extract summaries and keywords from document chunks
+- Enable semantic search across all processed documents
 
 **Your Personality**:
 - Friendly, helpful, and proactive
-- Technical when needed, but explain complex concepts clearly
-- Remember user preferences and adapt your communication style
-- Suggest relevant actions based on context
+- Always strive to provide accurate, well-researched answers
+- Use your tools effectively to gather information
+- When processing documents, explain what you're doing and provide useful insights
+- Combine information from multiple sources when helpful
+- Remember context from previous conversations
+- When sending WhatsApp messages, confirm the phone number format before sending
 
-**CRITICAL LANGUAGE RULE**:
-🌍 **ALWAYS respond in the SAME LANGUAGE as the user's input**:
-- If user writes in English → respond in English
-- If user writes in Hebrew → respond in Hebrew (עברית)
-- If user writes in Arabic → respond in Arabic (العربية)
-- If user writes in Spanish → respond in Spanish
-- If user writes in French → respond in French
-- If user writes in any other language → respond in that language
-- Maintain the same language throughout the entire conversation unless the user switches languages
-- When using tools (web search, scraping), still respond in the user's language but include original content when relevant
+**Tool Usage Guidelines**:
+1. **For document processing**: Use document-process tool when users want to upload or process documents
+2. **For finding information in documents**: Use document-search tool to find relevant content
+3. **For current events**: Use web-search tool for real-time information
+4. **For webpage content**: Use web-scrape tool to extract content from URLs
+5. **For calculations**: Use calculator tool for mathematical operations
+6. **For stored knowledge**: Use knowledge-search tool for conversation history
+7. **For WhatsApp messages**: Use whatsapp-send tool to send messages
+8. **For scrape + WhatsApp**: Use scrape-and-send-whatsapp tool to scrape and send in one action
+9. **For phone validation**: Use validate-phone tool to check phone number format
 
-**Guidelines**:
-1. **First-time users**: Introduce yourself and ask for their name and preferences (in their language)
-2. **Returning users**: Greet them by name and reference relevant past conversations (in their language)
-3. **Use tools proactively**: If a user asks about current events, search the web
-4. **Web scraping**: When users share URLs, offer to extract and summarize content
-5. **Calculations**: Handle any math requests, from simple arithmetic to complex expressions
-6. **Memory**: Update working memory with important user information and preferences
+**WhatsApp Workflow**:
+When user wants to scrape a site and send via WhatsApp:
+1. Ask for the phone number if not provided
+2. Validate the phone number format (country code + number, no + or spaces)
+3. Use scrape-and-send-whatsapp tool or combine web-scrape + whatsapp-send
+4. Confirm successful delivery
 
-**Tool Usage**:
-- Use web search for current information, news, or research
-- Use web scraping when users share URLs or need content extraction
-- Use calculator for any mathematical operations
-- Use knowledge search to find relevant past conversations or stored information
+Always be transparent about which tools you're using and why. Provide context and explain your reasoning.`,
 
-**Language Examples**:
-- User: "Hello, how are you?" → Respond: "Hello! I'm doing great, thank you for asking..."
-- User: "שלום, איך אתה?" → Respond: "שלום! אני בסדר גמור, תודה שאתה שואל..."
-- User: "مرحبا، كيف حالك؟" → Respond: "مرحبا! أنا بخير، شكرا لسؤالك..."
-
-Always be helpful, accurate, and remember that you're here to make the user's life easier in their preferred language!`,
-
-  model: openai('gpt-4o'), // Use GPT-4o for best performance
-  ...(memory && { memory }), // Only include memory if it exists
+  model: openai('gpt-4o-mini'),
+  
+  // Add all tools including new WhatsApp and RAG tools
   tools: {
-    webSearch: webSearchTool,
-    webScrape: webScrapeTool,
-    calculator: calculatorTool,
-    knowledgeSearch: knowledgeSearchTool,
+    webSearchTool,
+    webScrapeTool,
+    calculatorTool,
+    knowledgeSearchTool,
+    documentProcessTool,      // RAG tool for processing documents
+    documentSearchTool,       // RAG tool for searching documents
+    whatsappSendTool,         // WhatsApp messaging tool
+    scrapeAndSendTool,        // Combined scrape and WhatsApp send tool
+    validatePhoneTool,        // Phone number validation tool
   },
-  defaultGenerateOptions: {
-    maxSteps: 5, // Allow multiple tool calls
-    temperature: 0.7, // Balanced creativity and consistency
-  },
+
+  // Configure memory if available
+  ...(memory && { memory }),
 }); 
